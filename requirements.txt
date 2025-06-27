@@ -1,0 +1,9 @@
+google-generativeai
+flask
+moviepy==1.0.3
+scipy
+dotenv
+numpy
+Pillow==9.5.0
+pyinstaller
+opencv-python

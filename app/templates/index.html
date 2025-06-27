@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VidGen Studio - Buat Video dari Teks</title>
+    <!-- Menghubungkan file CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/global.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main_page.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/flash_messages.css') }}">
+    <style>
+        /* Perbaikan untuk menghilangkan border default browser pada fieldset */
+        fieldset {
+            border: 1px solid #3a3d42;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+
+        /* Perbaikan untuk garis horizontal (HR) */
+        hr {
+            border: none;
+            border-top: 1px solid #3a3d42;
+            margin: 20px 0;
+        }
+
+        /* Perbaikan untuk memastikan tombol utama memiliki gaya yang benar */
+        #submitButton.btn-primary {
+            background-color: #00adb5;
+            color: #ffffff;
+            border: 1px solid #00adb5;
+            padding: 12px 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            width: 100%;
+            margin-top: 15px;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        #submitButton.btn-primary:hover {
+            background-color: #00c2cb;
+            border-color: #00c2cb;
+        }
+
+        /* Style untuk enhanced processing checkbox */
+        .enhanced-processing-option {
+            background-color: #2a2d32;
+            border: 1px solid #00adb5;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .enhanced-processing-option label {
+            color: #00c2cb;
+            font-weight: 500;
+        }
+
+        .enhanced-processing-option small {
+            color: #b0b0b0;
+            display: block;
+            margin-top: 5px;
+        }
+
+        /* Style untuk info box perbedaan enhanced processing */
+        .enhanced-info-box {
+            background-color: #1a1c20;
+            border: 1px solid #3a3d42;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 10px;
+            color: #c0c0c0;
+        }
+
+        .enhanced-info-box h4 {
+            color: #00c2cb;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .enhanced-info-box ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .enhanced-info-box li {
+            margin-bottom: 5px;
+        }
+
+        /* Style untuk voice selection dengan deskripsi */
+        .voice-option {
+            padding: 8px 12px;
+            border-bottom: 1px solid #3a3d42;
+        }
+
+        .voice-option:last-child {
+            border-bottom: none;
+        }
+
+        .voice-label {
+            font-weight: 500;
+            color: #e0e0e0;
+        }
+
+        .voice-description {
+            font-size: 0.85em;
+            color: #b0b0b0;
+            margin-top: 2px;
+        }
+
+        /* Style untuk voice style selection */
+        .voice-style-option {
+            padding: 6px 10px;
+        }
+
+        .voice-style-label {
+            font-weight: 500;
+            color: #e0e0e0;
+        }
+
+        .voice-style-description {
+            font-size: 0.85em;
+            color: #b0b0b0;
+            margin-top: 2px;
+        }
+
+        /* Style untuk GPU acceleration option */
+        .gpu-acceleration-option {
+            background-color: #2a2d32;
+            border: 1px solid #00adb5;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .gpu-acceleration-option label {
+            color: #00c2cb;
+            font-weight: 500;
+        }
+
+        .gpu-acceleration-option small {
+            color: #b0b0b0;
+            display: block;
+            margin-top: 5px;
+        }
+
+        .gpu-info-box {
+            background-color: #1a1c20;
+            border: 1px solid #3a3d42;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 10px;
+            color: #c0c0c0;
+        }
+
+        .gpu-info-box h4 {
+            color: #00c2cb;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .gpu-info-box ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .gpu-info-box li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>VidGen Studio 🎥</h1>
+        </header>
+        
+        <div class="page-navigation">
+            <a href="{{ url_for('file_manager.manage_files') }}" class="btn btn-secondary">Kelola File Generated</a>
+            <a href="{{ url_for('prompt_templates.manage_templates') }}" class="btn btn-secondary">Kelola Template Prompt</a>
+        </div>
+
+        <form id="videoForm" method="POST" enctype="multipart/form-data">
+            
+            <!-- Pengaturan Utama -->
+            <fieldset>
+                <legend>1. Pengaturan Utama</legend>
+                <div class="form-group">
+                    <label for="ai_provider_select">Penyedia AI untuk Narasi</label>
+                    <select id="ai_provider_select" name="ai_provider">
+                        <option value="gemini" selected>Gemini (Google)</option>
+                        <option value="pollinations">Penyedia 1</option>
+                        <option value="puter_ai_chat">Penyedia 2 (Eksperimental)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="narrative_source_select">Sumber Narasi</label>
+                    <select id="narrative_source_select" name="narrative_source">
+                        <option value="prompt" selected>Dari Prompt</option>
+                        <option value="file">Dari File (.txt)</option>
+                    </select>
+                     <small id="narrative_source_puter_ai_info" class="form-text text-muted hidden-input">Puter AI hanya mendukung sumber narasi dari prompt.</small>
+                </div>
+            </fieldset>
+
+            <!-- Bagian yang Tergantung pada Sumber Narasi -->
+            <div id="narrative_source_dependent_sections">
+                <fieldset id="prompt_input_section" class="hidden-input">
+                    <legend>2. Detail Cerita (dari Prompt)</legend>
+                    <div id="gemini_api_key_section" class="form-group hidden-input">
+                        <label for="gemini_api_key">Gemini API Key</label>
+                        <input type="password" id="gemini_api_key" name="gemini_api_key" placeholder="Masukkan Gemini API Key Anda">
+                    </div>
+                    <div id="gemini_model_selection_section" class="form-group hidden-input">
+                        <label for="gemini_model">Model Gemini</label>
+                        <select id="gemini_model" name="gemini_model">
+                            {% for model in gemini_models %}<option value="{{ model }}" {% if model == default_gemini_model %}selected{% endif %}>{{ model }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div id="pollinations_model_selection_section" class="form-group hidden-input">
+                        <label for="pollinations_text_model">Model Teks Pollinations</label>
+                        <select id="pollinations_text_model" name="pollinations_text_model">
+                           {% for model in pollinations_text_models %}<option value="{{ model }}" {% if model == default_pollinations_text_model %}selected{% endif %}>{{ model }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div id="puter_ai_chat_model_section" class="form-group hidden-input">
+                         <label for="puter_ai_chat_model">Model Puter AI Chat</label>
+                         <select id="puter_ai_chat_model" name="puter_ai_chat_model">
+                            {% for model in puter_ai_chat_models %}<option value="{{ model }}" {% if model == default_puter_ai_chat_model %}selected{% endif %}>{{ model }}</option>{% endfor %}
+                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="story_prompt">Prompt Cerita Utama</label>
+                        <textarea id="story_prompt" name="story_prompt" rows="4" placeholder="Contoh: Petualangan seekor kucing oranye di pasar malam futuristik..."></textarea>
+                    </div>
+                     <div class="form-group">
+                        <label for="character_description">Deskripsi Karakter (Opsional)</label>
+                        <textarea id="character_description" name="character_description" rows="2" placeholder="Contoh: Kucing oranye bernama 'Oyen', memakai kalung lonceng biru..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="num_parts">Jumlah Bagian Cerita</label>
+                        <input type="number" id="num_parts" name="num_parts" value="{{ default_parts }}" min="1" max="10">
+                    </div>
+                    <div class="input-option word-count-inputs">
+                        <label>Target Kata per Bagian</label>
+                        <div class="form-inline">
+                           <input type="number" id="min_words_per_part" name="min_words_per_part" value="100" min="50" max="500">
+                           <span>-</span>
+                           <input type="number" id="max_words_per_part" name="max_words_per_part" value="{{ words_per_story_part }}" min="50" max="4000">
+                        </div>
+                    </div>
+                    <div id="style_options_section">
+                         <div class="form-group">
+                             <label for="narrative_expertise">Keahlian Penulis</label>
+                             <select id="narrative_expertise" name="narrative_expertise">
+                                {% for key, value in narrative_expertise_options.items() %}<option value="{{ value }}" {% if key == default_narrative_expertise %}selected{% endif %}>{{ key }}</option>{% endfor %}
+                             </select>
+                         </div>
+                         <div class="form-group">
+                             <label for="narrative_tone">Nada Penulisan</label>
+                             <select id="narrative_tone" name="narrative_tone">
+                                 {% for key, value in narrative_tone_options.items() %}<option value="{{ value }}" {% if key == default_narrative_tone %}selected{% endif %}>{{ key }}</option>{% endfor %}
+                             </select>
+                         </div>
+                         <div class="form-group">
+                             <label for="narrative_format">Format Teks</label>
+                             <select id="narrative_format" name="narrative_format">
+                                 {% for key, value in narrative_format_options.items() %}<option value="{{ value }}" {% if key == default_narrative_format %}selected{% endif %}>{{ key }}</option>{% endfor %}
+                             </select>
+                         </div>
+                    </div>
+                    <div id="prompt_template_id_section" class="form-group">
+                        <label for="prompt_template_id">Template Prompt Cerita</label>
+                        <select id="prompt_template_id" name="prompt_template_id">
+                            {% for template in prompt_templates %}{% if template.type == 'story' %}<option value="{{ template.id }}" {% if template.is_default %}selected{% endif %}>{{ template.name }}</option>{% endif %}{% endfor %}
+                        </select>
+                    </div>
+                </fieldset>
+                <fieldset id="file_upload_section" class="hidden-input">
+                    <legend>2. Unggah Naskah Cerita</legend>
+                    <div class="form-group">
+                        <label for="narrative_file">Pilih File Teks (.txt)</label>
+                        <div id="narrative_file_drop_zone" class="drop-zone">
+                            <p>Seret & Lepas file .txt ke sini, atau klik untuk memilih.</p>
+                            <div id="file_list_display">Tidak ada file dipilih.</div>
+                        </div>
+                        <input type="file" id="narrative_file" name="narrative_file" accept=".txt" multiple hidden>
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- Opsi Audio & Gambar -->
+            <fieldset>
+                <legend>3. Opsi Audio & Gambar</legend>
+                <div class="form-group">
+                    <label for="narrative_language">Bahasa Narasi & Suara</label>
+                    <select id="narrative_language" name="narrative_language">
+                        {% for key, value in narrative_language_options.items() %}<option value="{{ key }}" {% if key == default_narrative_language %}selected{% endif %}>{{ key }}</option>{% endfor %}
+                    </select>
+                </div>
+                
+                <!-- TAMBAHAN BARU: Pilihan Suara -->
+                <div class="form-group">
+                    <label for="tts_voice">Pilihan Suara</label>
+                    <select id="tts_voice" name="tts_voice">
+                        {% for voice in pollinations_voices %}
+                        <option value="{{ voice.value }}" {% if voice.value == default_voice %}selected{% endif %} 
+                                data-description="{{ voice.description }}">
+                            {{ voice.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted" id="voice_description_display">
+                        Pilih suara yang sesuai dengan karakter cerita Anda.
+                    </small>
+                </div>
+
+                <!-- TAMBAHAN BARU: Gaya Suara -->
+                <div class="form-group">
+                    <label for="tts_voice_style">Gaya Suara</label>
+                    <select id="tts_voice_style" name="tts_voice_style">
+                        {% for style in pollinations_voice_styles %}
+                        <option value="{{ style.value }}" {% if style.value == default_voice_style %}selected{% endif %} 
+                                data-description="{{ style.description }}">
+                            {{ style.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted" id="voice_style_description_display">
+                        Pilih gaya yang sesuai dengan mood cerita Anda.
+                    </small>
+                </div>
+
+                <div id="pollinations_image_model_section" class="form-group">
+                    <label for="image_model">Model Gambar Pollinations</label>
+                    <select id="image_model" name="image_model">
+                        {% for model in pollinations_image_models %}<option value="{{ model }}" {% if model == default_pollinations_image_model %}selected{% endif %}>{{ model }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="image_prompt_template_id">Template Prompt Gambar</label>
+                    <select id="image_prompt_template_id" name="image_prompt_template_id">
+                        {% for template in prompt_templates %}{% if template.type == 'image' %}<option value="{{ template.id }}" {% if template.is_default %}selected{% endif %}>{{ template.name }}</option>{% endif %}{% endfor %}
+                    </select>
+                </div>
+                <div id="image_aspect_ratio_section" class="form-group">
+                    <label for="aspect_ratio">Aspek Rasio Gambar</label>
+                    <select id="aspect_ratio" name="aspect_ratio">
+                        {% for ratio in image_aspect_ratios %}<option value="{{ ratio }}" {% if ratio == default_image_aspect_ratio %}selected{% endif %}>{{ ratio }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="input-option">
+                    <label>Jumlah Gambar per Paragraf</label>
+                    <div class="form-inline">
+                       <input type="number" id="images_per_chunk_min" name="images_per_chunk_min" value="{{ images_per_paragraph_min }}" min="1" max="5">
+                       <span>-</span>
+                       <input type="number" id="images_per_chunk_max" name="images_per_chunk_max" value="{{ images_per_paragraph_max }}" min="1" max="5">
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Enhanced Processing Option -->
+            <fieldset>
+                <legend>4. Mode Pemrosesan</legend>
+                <div class="enhanced-processing-option">
+                    <label class="form-switch">
+                        <input type="checkbox" id="use_enhanced_processing" name="use_enhanced_processing" value="true">
+                        Gunakan Enhanced Processing (Level Kalimat)
+                    </label>
+                    <small class="form-text text-muted">
+                        Aktifkan untuk memproses narasi per kalimat untuk hasil yang lebih detail dan konsisten dengan gambar. 
+                        Mode ini akan menganalisis setiap kalimat dalam paragraf untuk membuat prompt gambar yang lebih spesifik.
+                    </small>
+                    
+                    <!-- PENJELASAN PERBEDAAN ENHANCED PROCESSING -->
+                    <div class="enhanced-info-box">
+                        <h4>Perbedaan Mode Pemrosesan:</h4>
+                        <ul>
+                            <li><strong>Mode Normal:</strong> Memproses narasi per paragraf (600 karakter), membuat 3-5 prompt gambar per paragraf secara acak</li>
+                            <li><strong>Enhanced Processing:</strong> Memproses narasi per kalimat dalam paragraf, membuat 1 prompt gambar spesifik per kalimat untuk konsistensi visual yang lebih baik</li>
+                        </ul>
+                        <p><small><strong>Rekomendasi:</strong> Gunakan Enhanced Processing untuk cerita yang membutuhkan detail visual yang konsisten antar scene.</small></p>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Pengaturan Efek Visual -->
+            <fieldset class="effects-settings-group">
+                <legend>5. Pengaturan Efek Visual</legend>
+                <div class="form-group">
+                    <label class="form-switch">Aktifkan Efek Motion & Transisi
+                        <input type="checkbox" id="effects_enabled" name="effects_enabled" value="true" {% if default_effects_enabled %}checked{% endif %}>
+                    </label>
+                </div>
+                <fieldset id="effect_probabilities_fieldset">
+                    <legend>Probabilitas Efek</legend>
+                    <small>Atur kemungkinan setiap efek terjadi. Total harus 100% untuk gerakan.</small>
+                     <div class="probability-slider-group">
+                        <label for="fade_probability">Transisi Fade In/Out (%)</label>
+                        <input type="range" id="fade_probability" name="fade_probability" min="0" max="100" value="{{ default_fade_probability }}"><output for="fade_probability">{{ default_fade_probability }}%</output>
+                    </div><hr>
+                    <div class="probability-slider-group">
+                        <label for="zoom_in_probability">Gerakan Zoom In (%)</label>
+                        <input type="range" id="zoom_in_probability" name="zoom_in_probability" min="0" max="100" value="{{ default_zoom_in_probability }}"><output for="zoom_in_probability">{{ default_zoom_in_probability }}%</output>
+                    </div>
+                    <div class="probability-slider-group">
+                        <label for="zoom_out_probability">Gerakan Zoom Out (%)</label>
+                        <input type="range" id="zoom_out_probability" name="zoom_out_probability" min="0" max="100" value="{{ default_zoom_out_probability }}"><output for="zoom_out_probability">{{ default_zoom_out_probability }}%</output>
+                    </div>
+                    <div class="probability-slider-group">
+                        <label for="static_probability">Gambar Diam (%)</label>
+                        <input type="range" id="static_probability" name="static_probability" min="0" max="100" value="{{ default_static_probability }}"><output for="static_probability">{{ default_static_probability }}%</output>
+                    </div>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <p>Total Probabilitas Gerakan: <strong id="totalMotionProbability">100%</strong></p>
+                    </div>
+                </fieldset>
+            </fieldset>
+            
+            <!-- Pengaturan Lanjutan -->
+            <fieldset>
+                 <legend>6. Pengaturan Lanjutan</legend>
+                 
+                 <!-- GPU Acceleration Option -->
+                 <div class="gpu-acceleration-option">
+                    <label class="form-switch">
+                        <input type="checkbox" id="gpu_acceleration_enabled" name="gpu_acceleration_enabled" value="true" {% if default_gpu_acceleration_enabled %}checked{% endif %}>
+                        Aktifkan GPU Acceleration untuk Video Encoding
+                    </label>
+                    <small class="form-text text-muted">
+                        Menggunakan hardware acceleration (Intel QSV, NVIDIA NVENC, AMD AMF) untuk encoding video yang lebih cepat. 
+                        Jika dinonaktifkan, akan menggunakan CPU encoder (libx264).
+                    </small>
+                    
+                    <div class="gpu-info-box">
+                        <h4>Informasi GPU Acceleration:</h4>
+                        <ul>
+                            <li><strong>Intel QSV:</strong> h264_qsv, hevc_qsv (untuk Intel integrated graphics)</li>
+                            <li><strong>NVIDIA NVENC:</strong> h264_nvenc, hevc_nvenc (untuk GPU NVIDIA)</li>
+                            <li><strong>AMD AMF:</strong> h264_amf, hevc_amf (untuk GPU AMD)</li>
+                            <li><strong>CPU Fallback:</strong> libx264 (kompatibel dengan semua sistem)</li>
+                        </ul>
+                        <p><small><strong>Catatan:</strong> Sistem akan otomatis mendeteksi hardware yang tersedia dan memilih encoder terbaik. Jika hardware acceleration gagal, akan fallback ke CPU encoder.</small></p>
+                    </div>
+                </div>
+                 
+                 <div class="form-group">
+                    <label for="tts_max_retries">Max Percobaan Ulang TTS</label>
+                    <input type="number" id="tts_max_retries" name="tts_max_retries" value="{{ default_tts_max_retries }}" min="1" max="5">
+                    <small class="form-text text-muted">Jumlah percobaan ulang jika generasi audio gagal.</small>
+                  </div>
+                 <div class="form-group">
+                    <label for="image_max_retries">Max Percobaan Ulang Gambar</label>
+                    <input type="number" id="image_max_retries" name="image_max_retries" value="{{ default_image_max_retries }}" min="1" max="5">
+                    <small class="form-text text-muted">Jumlah percobaan ulang jika generasi gambar gagal.</small>
+                 </div>
+            </fieldset>
+
+            <button type="submit" id="submitButton" class="btn btn-primary">Buat Video!</button>
+        </form>
+
+        <!-- Area Proses & Hasil -->
+        <div id="progressArea" style="display:none;">
+            <h2>Proses Pembuatan Video...</h2>
+            <div id="loader" class="loader"></div>
+            <div id="statusMessages" class="status-messages">Menunggu untuk memulai...</div>
+        </div>
+
+        <div id="resultsArea" style="display:none;">
+            <h2 id="resultMessage">Video Berhasil Dibuat!</h2>
+            
+            <!-- PERBAIKAN: Pastikan video container ada dan terstruktur dengan benar -->
+            <div id="videoPlayerContainer">
+                <!-- Video element akan ditambahkan di sini oleh JavaScript -->
+            </div>
+            
+            <!-- Area Laporan -->
+            <div id="reportDisplayArea" style="display:none;"></div>
+            
+            <!-- Story Preview -->
+            <div id="storyPreview" class="story-preview" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <!-- Memuat file JavaScript dalam urutan yang benar -->
+    <script src="{{ url_for('static', filename='js/show_conf_ai.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/index_page_logic.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/enhanced_ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/setting_manager.js') }}"></script>
+    <!-- main.js harus dimuat terakhir karena menangani form submission -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <!-- Script untuk menampilkan deskripsi voice dan style -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update deskripsi voice saat pilihan berubah
+            const voiceSelect = document.getElementById('tts_voice');
+            const voiceDescDisplay = document.getElementById('voice_description_display');
+            
+            function updateVoiceDescription() {
+                const selectedOption = voiceSelect.options[voiceSelect.selectedIndex];
+                const description = selectedOption.getAttribute('data-description');
+                if (description && voiceDescDisplay) {
+                    voiceDescDisplay.textContent = description;
+                }
+            }
+            
+            if (voiceSelect) {
+                voiceSelect.addEventListener('change', updateVoiceDescription);
+                updateVoiceDescription(); // Set initial description
+            }
+            
+            // Update deskripsi voice style saat pilihan berubah
+            const voiceStyleSelect = document.getElementById('tts_voice_style');
+            const voiceStyleDescDisplay = document.getElementById('voice_style_description_display');
+            
+            function updateVoiceStyleDescription() {
+                const selectedOption = voiceStyleSelect.options[voiceStyleSelect.selectedIndex];
+                const description = selectedOption.getAttribute('data-description');
+                if (description && voiceStyleDescDisplay) {
+                    voiceStyleDescDisplay.textContent = description;
+                }
+            }
+            
+            if (voiceStyleSelect) {
+                voiceStyleSelect.addEventListener('change', updateVoiceStyleDescription);
+                updateVoiceStyleDescription(); // Set initial description
+            }
+        });
+    </script>
+</body>
+</html>
