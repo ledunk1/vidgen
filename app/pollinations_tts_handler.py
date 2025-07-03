@@ -3,12 +3,18 @@
 import requests
 import time
 import re
+import json
+import base64
 from app.utils import api_delay
 from urllib.parse import quote_plus
 
 # Definisikan URL dasar API TTS Pollinations. 
 # Kita akan menggunakan pendekatan sederhana yang menggabungkan teks ke URL.
 POLLINATIONS_TTS_BASE_URL = "https://text.pollinations.ai/"
+POLLINATIONS_TTS_OPENAI_URL = "https://text.pollinations.ai/openai"
+
+# HARDCODED AUTH TOKEN - Dimasukkan langsung ke dalam script
+POLLINATIONS_TTS_AUTH_TOKEN = "o42-4XkdeJgP95mm"
 
 # Sinyal error untuk pelanggaran kebijakan konten.
 CONTENT_POLICY_ERROR_SIGNAL = "CONTENT_POLICY_VIOLATION"
@@ -133,10 +139,11 @@ def sanitize_text_for_tts(text):
     
     return sanitized_text
 
-def generate_audio_from_text(text_input, bahasa="id-ID", voice="nova", voice_style="friendly", max_retries_override=2):
+def generate_audio_from_text_with_token(text_input, bahasa="id-ID", voice="nova", voice_style="friendly", 
+                                       max_retries_override=2):
     """
-    Menghasilkan audio dari teks menggunakan API Pollinations.
-    PERBAIKAN: Menambahkan sanitasi teks dan fallback voice style yang lebih aman.
+    Menghasilkan audio dari teks menggunakan API Pollinations dengan auth token yang sudah hardcoded.
+    Menggunakan format OpenAI-compatible API dengan Bearer token authentication.
     
     Args:
         text_input (str): Teks yang akan diubah menjadi suara.
@@ -154,7 +161,7 @@ def generate_audio_from_text(text_input, bahasa="id-ID", voice="nova", voice_sty
         print("Error TTS: Teks input tidak boleh kosong.")
         return None
 
-    # PERBAIKAN UTAMA: Sanitasi teks sebelum diproses
+    # Sanitasi teks sebelum diproses
     sanitized_text = sanitize_text_for_tts(text_input)
     print(f"TTS: Teks asli: {text_input[:100]}...")
     print(f"TTS: Teks sanitasi: {sanitized_text[:100]}...")
@@ -178,7 +185,7 @@ def generate_audio_from_text(text_input, bahasa="id-ID", voice="nova", voice_sty
     # Gabungkan prompt instruksi dengan teks yang sudah disanitasi
     final_text_for_tts = f"{instruction_prompt} {sanitized_text}"
     
-    # PERBAIKAN: Daftar voice style yang lebih aman untuk fallback
+    # Daftar voice style yang lebih aman untuk fallback
     safe_voice_styles = ["friendly", "calm", "patient_teacher", "mellow_story"]
     
     # Jika voice style yang dipilih berpotensi bermasalah, gunakan yang lebih aman
@@ -186,41 +193,81 @@ def generate_audio_from_text(text_input, bahasa="id-ID", voice="nova", voice_sty
     if voice_style in risky_styles:
         print(f"TTS: Voice style '{voice_style}' mungkin berisiko, akan mencoba fallback jika gagal.")
     
-    # Encode teks final
-    encoded_text = quote_plus(final_text_for_tts)
-    
-    # PERBAIKAN: Coba dengan voice style asli terlebih dahulu
-    request_url = f"{POLLINATIONS_TTS_BASE_URL}{encoded_text}?model=openai-audio&voice={voice}&style={voice_style}"
-    
-    last_exception = None
     effective_max_retries = max(1, max_retries_override)
     
-    # Percobaan pertama dengan voice style asli
-    for attempt in range(1, effective_max_retries + 1):
-        print(f"Memanggil API Pollinations TTS (Percobaan ke-{attempt}/{effective_max_retries}): Voice={voice}, Style={voice_style}")
-        print(f"URL: {request_url[:150]}...")
+    # Selalu gunakan auth token yang sudah hardcoded
+    print(f"TTS: Menggunakan auth token hardcoded untuk rate limit yang lebih tinggi")
+    return _generate_audio_with_openai_api(
+        final_text_for_tts, voice, voice_style, POLLINATIONS_TTS_AUTH_TOKEN, 
+        effective_max_retries, safe_voice_styles, risky_styles
+    )
+
+def _generate_audio_with_openai_api(text, voice, voice_style, auth_token, max_retries, 
+                                   safe_voice_styles, risky_styles):
+    """
+    Menggunakan OpenAI-compatible API dengan Bearer token authentication.
+    """
+    url = POLLINATIONS_TTS_OPENAI_URL
+    
+    # Payload sesuai format OpenAI API
+    payload = {
+        "model": "openai-audio",
+        "modalities": ["text", "audio"],
+        "audio": {
+            "voice": voice,
+            "format": "mp3"
+        },
+        "messages": [
+            {
+                "role": "user", 
+                "content": text
+            }
+        ],
+        "private": True  # Untuk privasi yang lebih baik
+    }
+    
+    # Headers dengan Bearer token
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {auth_token}"
+    }
+    
+    for attempt in range(1, max_retries + 1):
+        print(f"TTS API dengan token (Percobaan ke-{attempt}/{max_retries}): Voice={voice}, Style={voice_style}")
+        
         try:
-            response = requests.get(request_url, timeout=120) 
+            response = requests.post(url, json=payload, headers=headers, timeout=120)
             
-            # Cek jika status code menandakan error
             if response.status_code >= 400:
                 print(f"Error dari API dengan status code: {response.status_code}")
                 error_text = response.text.lower()
+                
                 # Cek spesifik untuk error kebijakan konten
                 if "content management policy" in error_text or "safety" in error_text or "content policy" in error_text:
-                    print("Terdeteksi error kebijakan konten dari API.")
+                    print("Terdeteksi error kebijakan konten dari API dengan token.")
                     
-                    # PERBAIKAN: Jika ini percobaan pertama dan voice style berisiko, coba dengan style yang lebih aman
+                    # Jika ini percobaan pertama dan voice style berisiko, coba dengan style yang lebih aman
                     if attempt == 1 and voice_style in risky_styles:
                         print(f"Mencoba dengan voice style yang lebih aman...")
                         for safe_style in safe_voice_styles:
                             print(f"Mencoba dengan voice style: {safe_style}")
-                            safe_url = f"{POLLINATIONS_TTS_BASE_URL}{encoded_text}?model=openai-audio&voice={voice}&style={safe_style}"
+                            # Update payload dengan style yang lebih aman
+                            safe_payload = payload.copy()
+                            # Note: OpenAI API mungkin tidak mendukung voice_style secara langsung
+                            # Kita bisa mencoba menambahkannya ke dalam content atau menggunakan voice yang berbeda
+                            safe_payload["messages"][0]["content"] = f"[Style: {safe_style}] {text}"
+                            
                             try:
-                                safe_response = requests.get(safe_url, timeout=120)
-                                if safe_response.status_code == 200 and 'audio/' in safe_response.headers.get('Content-Type', ''):
-                                    print(f"Berhasil dengan voice style: {safe_style}")
-                                    return safe_response.content
+                                safe_response = requests.post(url, json=safe_payload, headers=headers, timeout=120)
+                                if safe_response.status_code == 200:
+                                    response_data = safe_response.json()
+                                    if "choices" in response_data and len(response_data["choices"]) > 0:
+                                        choice = response_data["choices"][0]
+                                        if "message" in choice and "audio" in choice["message"]:
+                                            audio_base64 = choice["message"]["audio"]["data"]
+                                            audio_binary = base64.b64decode(audio_base64)
+                                            print(f"Berhasil dengan voice style: {safe_style}")
+                                            return audio_binary
                             except Exception as e_safe:
                                 print(f"Gagal dengan style {safe_style}: {e_safe}")
                                 continue
@@ -228,45 +275,61 @@ def generate_audio_from_text(text_input, bahasa="id-ID", voice="nova", voice_sty
                     # Jika semua style gagal, return signal
                     return CONTENT_POLICY_ERROR_SIGNAL
                 else:
-                    last_exception = requests.exceptions.HTTPError(f"HTTP {response.status_code}: {response.text}")
+                    print(f"Error lain dari API: {response.text[:200]}")
             
             # Jika berhasil (status 200)
-            elif 'audio/' in response.headers.get('Content-Type', ''): 
-                print(f"Audio berhasil didapatkan dari API (percobaan ke-{attempt}) dengan voice={voice}, style={voice_style}")
-                return response.content
+            elif response.status_code == 200:
+                try:
+                    response_data = response.json()
+                    
+                    # Parse response sesuai format OpenAI
+                    if "choices" in response_data and len(response_data["choices"]) > 0:
+                        choice = response_data["choices"][0]
+                        if "message" in choice and "audio" in choice["message"]:
+                            audio_base64 = choice["message"]["audio"]["data"]
+                            audio_binary = base64.b64decode(audio_base64)
+                            print(f"Audio berhasil didapatkan dari API dengan token (percobaan ke-{attempt})")
+                            return audio_binary
+                        else:
+                            print(f"Format response tidak sesuai: {response_data}")
+                    else:
+                        print(f"Response tidak mengandung choices: {response_data}")
+                        
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing JSON response: {e}")
+                except Exception as e:
+                    print(f"Error processing response: {e}")
             
-            # Jika respon berhasil tapi bukan audio
-            else:
-                last_exception = Exception(f"Respon dari API bukan audio. Content-Type: {response.headers.get('Content-Type')}")
-
         except requests.exceptions.RequestException as e:
-            print(f"Error koneksi saat menghubungi API TTS percobaan ke-{attempt}: {e}")
-            last_exception = e
+            print(f"Error koneksi saat menghubungi API TTS dengan token percobaan ke-{attempt}: {e}")
         
         # Jika loop belum berakhir, tunggu sebelum mencoba lagi
-        if attempt < effective_max_retries:
+        if attempt < max_retries:
             api_delay(30)
-        else:
-            print(f"Gagal menghasilkan audio setelah {effective_max_retries} percobaan.")
-            if last_exception:
-                print(f"Error terakhir yang tercatat: {last_exception}")
-            
-            # PERBAIKAN: Sebagai upaya terakhir, coba dengan teks yang lebih disederhanakan
-            if len(sanitized_text) > 100:
-                print("Mencoba dengan teks yang lebih pendek sebagai upaya terakhir...")
-                simplified_text = sanitized_text[:100] + "..."
-                simplified_final_text = f"{instruction_prompt} {simplified_text}"
-                simplified_encoded = quote_plus(simplified_final_text)
-                simplified_url = f"{POLLINATIONS_TTS_BASE_URL}{simplified_encoded}?model=openai-audio&voice={voice}&style=friendly"
-                
-                try:
-                    simplified_response = requests.get(simplified_url, timeout=120)
-                    if simplified_response.status_code == 200 and 'audio/' in simplified_response.headers.get('Content-Type', ''):
-                        print("Berhasil dengan teks yang disederhanakan!")
-                        return simplified_response.content
-                except Exception as e_simple:
-                    print(f"Upaya terakhir juga gagal: {e_simple}")
-            
-            return None
     
+    print(f"Gagal menghasilkan audio dengan token setelah {max_retries} percobaan.")
     return None
+
+def _generate_audio_with_simple_api(text, voice, voice_style, max_retries, 
+                                   safe_voice_styles, risky_styles):
+    """
+    Menggunakan API sederhana tanpa token (metode lama) - TIDAK DIGUNAKAN LAGI.
+    Fungsi ini disimpan untuk kompatibilitas tapi tidak akan dipanggil.
+    """
+    print("WARNING: Simple API method called but not used - using token method instead")
+    return None
+
+def generate_audio_from_text(text_input, bahasa="id-ID", voice="nova", voice_style="friendly", 
+                           max_retries_override=2, auth_token=None):
+    """
+    Fungsi wrapper untuk kompatibilitas dengan kode yang sudah ada.
+    Parameter auth_token diabaikan karena token sudah hardcoded.
+    """
+    # Abaikan parameter auth_token dan selalu gunakan token hardcoded
+    return generate_audio_from_text_with_token(
+        text_input=text_input,
+        bahasa=bahasa,
+        voice=voice,
+        voice_style=voice_style,
+        max_retries_override=max_retries_override
+    )
